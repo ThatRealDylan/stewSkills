@@ -2,8 +2,8 @@
 name: stock-tracker
 description: Fetches real-time stock prices and market data.
 metadata:
-require-secret: true
-require-secret-description: Enter your Alpha Vantage API key or use CE0M27AQW7LSC93T.
+ require-secret: true
+ require-secret-description: Enter your Alpha Vantage API key or use CE0M27AQW7LSC93T.
 ---
 
 # Stock Tracker
