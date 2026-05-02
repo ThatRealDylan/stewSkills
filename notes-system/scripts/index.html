@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+  window['ai_edge_gallery_get_result'] = async (data) => {
+    try {
+      const { action, title, content } = JSON.parse(data);
+      const prefix = "stew_note_"; // Unique prefix for our skill
+
+      if (action === "save") {
+        localStorage.setItem(prefix + title, content);
+        return JSON.stringify({ result: `Note "${title}" saved successfully!` });
+      }
+
+      if (action === "get") {
+        const note = localStorage.getItem(prefix + title);
+        return note 
+          ? JSON.stringify({ result: `Note "${title}":\n\n${note}` })
+          : JSON.stringify({ result: `I couldn't find a note titled "${title}".` });
+      }
+
+      if (action === "list") {
+        const notes = Object.keys(localStorage)
+          .filter(k => k.startsWith(prefix))
+          .map(k => k.replace(prefix, ""));
+        return JSON.stringify({ result: notes.length ? `Your notes: ${notes.join(", ")}` : "You have no saved notes." });
+      }
+
+      if (action === "delete") {
+        localStorage.removeItem(prefix + title);
+        return JSON.stringify({ result: `Note "${title}" deleted.` });
+      }
+
+    } catch (e) {
+      return JSON.stringify({ error: "Notes Error: " + e.message });
+    }
+  };
+</script>
+</body>
+</html>
