@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+  window['ai_edge_gallery_get_result'] = async (data, secret) => {
+    try {
+      const jsonData = JSON.parse(data);
+      const symbol = jsonData.symbol;
+      const apiKey = secret; // The app handles the popup for you!
+
+      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`;
+      const response = await fetch(url);
+      const resData = await response.json();
+      
+      const quote = resData["Global Quote"];
+      
+      if (quote && quote["05. price"]) {
+        const resultText = `The price of ${symbol} is $${parseFloat(quote["05. price"]).toFixed(2)}.`;
+        return JSON.stringify({ result: resultText });
+      } else {
+        return JSON.stringify({ error: "Ticker not found." });
+      }
+    } catch (e) {
+      return JSON.stringify({ error: e.message });
+    }
+  };
+</script>
+</body>
+</html>
