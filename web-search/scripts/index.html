@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+  window['ai_edge_gallery_get_result'] = async (data) => {
+    try {
+      const query = JSON.parse(data).query;
+      
+      // Using a CORS proxy to bypass blocks
+      const proxy = "https://api.allorigins.win/get?url=";
+      const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+      
+      const response = await fetch(proxy + encodeURIComponent(ddgUrl));
+      const json = await response.json();
+      const html = json.contents;
+
+      // Extract results using a simple regex (since we don't have a full DOM parser easily)
+      // We look for the result titles and snippets
+      const results = [];
+      const regex = /class="result__a" href="([^"]+)">([^<]+)<\/a>/g;
+      let match;
+      
+      while ((match = regex.exec(html)) !== null && results.length < 5) {
+        results.push({
+          title: match[2].trim(),
+          url: match[1]
+        });
+      }
+
+      if (results.length === 0) {
+        return JSON.stringify({ result: "No results found. Try a different query." });
+      }
+
+      const formatted = results.map((r, i) => `${i+1}. ${r.title}\nURL: ${r.url}`).join('\n\n');
+      return JSON.stringify({ result: `Search results for "${query}":\n\n${formatted}` });
+
+    } catch (e) {
+      return JSON.stringify({ error: "Search failed: " + e.message });
+    }
+  };
+</script>
+</body>
+</html>

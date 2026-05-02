@@ -2,32 +2,38 @@
 <html>
 <body>
 <script>
-  window['ai_edge_gallery_get_result'] = async (data, secret) => {
+  window['ai_edge_gallery_get_result'] = async (data) => {
     try {
       const city = JSON.parse(data).city;
-      const apiKey = secret;
 
-      // 1. Get coordinates for the city
-      const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${apiKey}`;
+      // 1. Get coordinates using Open-Meteo Geocoding (No key needed!)
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
       const geoRes = await fetch(geoUrl);
       const geoData = await geoRes.json();
 
-      if (!geoData.length) return JSON.stringify({ error: "City not found." });
+      if (!geoData.results || geoData.results.length === 0) {
+        return JSON.stringify({ error: `Could not find a city named "${city}".` });
+      }
 
-      const { lat, lon, name } = geoData[0];
+      const { latitude, longitude, name, country } = geoData.results[0];
 
-      // 2. Get current weather
-      const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+      // 2. Get current weather data
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code&wind_speed_unit=ms`;
       const weatherRes = await fetch(weatherUrl);
       const weatherData = await weatherRes.json();
 
-      const temp = weatherData.main.temp;
-      const desc = weatherData.weather[0].description;
+      const temp = weatherData.current.temperature_2m;
+      const humidity = weatherData.current.relative_humidity_2m;
+      
+      // Simple weather code mapping (optional expansion)
+      const resultText = `The current weather in ${name}, ${country} is ${temp}°C with ${humidity}% humidity.`;
 
-      const resultText = `The weather in ${name} is currently ${temp}°C with ${desc}.`;
-      return JSON.stringify({ result: resultText });
+      return JSON.stringify({ 
+        result: resultText 
+      });
+
     } catch (e) {
-      return JSON.stringify({ error: e.message });
+      return JSON.stringify({ error: `Skill Error: ${e.message}` });
     }
   };
 </script>
