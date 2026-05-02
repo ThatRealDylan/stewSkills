@@ -1,3 +1,4 @@
+
 ---
 name: stock-tracker
 description: Fetches real-time stock prices and market data.
