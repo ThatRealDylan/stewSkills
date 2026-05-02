@@ -1,4 +1,3 @@
-
 ---
 name: stock-tracker
 description: Fetches real-time stock prices and market data.
@@ -7,6 +6,9 @@ metadata:
   require-secret-description: CE0M27AQW7LSC93T.
 ---
 
+---
+sample
+---
 # Stock Tracker
 
 ## Instructions
