@@ -3,7 +3,7 @@ name: stock-tracker
 description: Fetches real-time stock prices and market data.
 metadata:
   require-secret: true
-  require-secret-description: CE0M27AQW7LSC93T.
+  require-secret-description: Enter your API Key or use this one: CE0M27AQW7LSC93T.
 ---
 
 ---
