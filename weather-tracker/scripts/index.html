@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+  window['ai_edge_gallery_get_result'] = async (data, secret) => {
+    try {
+      const city = JSON.parse(data).city;
+      const apiKey = secret;
+
+      // 1. Get coordinates for the city
+      const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${apiKey}`;
+      const geoRes = await fetch(geoUrl);
+      const geoData = await geoRes.json();
+
+      if (!geoData.length) return JSON.stringify({ error: "City not found." });
+
+      const { lat, lon, name } = geoData[0];
+
+      // 2. Get current weather
+      const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+      const weatherRes = await fetch(weatherUrl);
+      const weatherData = await weatherRes.json();
+
+      const temp = weatherData.main.temp;
+      const desc = weatherData.weather[0].description;
+
+      const resultText = `The weather in ${name} is currently ${temp}°C with ${desc}.`;
+      return JSON.stringify({ result: resultText });
+    } catch (e) {
+      return JSON.stringify({ error: e.message });
+    }
+  };
+</script>
+</body>
+</html>
