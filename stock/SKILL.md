@@ -1,7 +1,7 @@
 ---
 name: "Stock Tracker"
-description: "Fetches real-time stock prices and market data."
-author: "ThatRealDylan"
+description: "Fetches real-time stock prices."
+author: "StewSkills"
 version: "1.0.0"
 ---
 
