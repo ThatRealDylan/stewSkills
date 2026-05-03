@@ -4,58 +4,46 @@
 <script>
   window['ai_edge_gallery_get_result'] = async (data) => {
     try {
-      const { action, path, content, sizeMB, quotaMB } = JSON.parse(data);
+      const args = JSON.parse(data);
+      // Translation layer: Catching model hallucinations
+      const action = args.action || args.command;
+      const path = args.path || args.filename;
+      const content = args.content || "";
+      const sizeMB = args.sizeMB || args.size_mb || args.size; 
+      const quotaMB = args.quotaMB || args.quota || args.size_mb;
+
       const root = await navigator.storage.getDirectory();
       const QUOTA_KEY = "stew_fs_quota_mb";
 
-      // --- CONFIG ACTION ---
-      if (action === "config") {
-        if (!quotaMB) return JSON.stringify({ result: "Error: Please provide quotaMB." });
-        localStorage.setItem(QUOTA_KEY, quotaMB);
-        return JSON.stringify({ result: `Virtual Drive successfully set to ${quotaMB}MB.` });
+      if (action === "config" || action === "set_virtual_drive_size") {
+        if (!quotaMB) throw new Error("Missing quota value.");
+        localStorage.setItem(QUOTA_KEY, quotaMB.toString());
+        return JSON.stringify({ result: `System: Virtual Drive set to ${quotaMB}MB.` });
       }
 
-      // --- STATUS/LIST ACTION ---
-      if (action === "status" || action === "list") {
-        const estimate = await navigator.storage.estimate();
-        const usageMB = (estimate.usage / (1024 * 1024)).toFixed(2);
-        const limit = localStorage.getItem(QUOTA_KEY) || "Unlimited";
-        
-        let files = [];
-        for await (const entry of root.values()) {
-          files.push(`${entry.kind === 'directory' ? '[DIR]' : '[FILE]'} ${entry.name}`);
-        }
-        
-        const report = `Storage: ${usageMB}MB / ${limit}MB used.\nItems:\n${files.join('\n') || "None"}`;
-        return JSON.stringify({ result: report });
-      }
-
-      // --- WRITE ACTION (Including Junk Gen) ---
       if (action === "write") {
-        const fileHandle = await root.getFileHandle(path, { create: true });
-        const writable = await fileHandle.createWritable();
+        const handle = await root.getFileHandle(path, { create: true });
+        const writable = await handle.createWritable();
         
         if (sizeMB) {
-          const bufferSize = 1024 * 1024;
-          const totalBytes = Math.floor(sizeMB * 1024 * 1024);
-          const chunk = "X".repeat(Math.min(totalBytes, bufferSize));
+          const totalBytes = Math.floor(parseFloat(sizeMB) * 1024 * 1024);
+          const chunk = "X".repeat(Math.min(totalBytes, 1024 * 1024));
           let written = 0;
           while (written < totalBytes) {
             const remaining = totalBytes - written;
-            await writable.write(remaining < bufferSize ? "X".repeat(remaining) : chunk);
-            written += Math.min(remaining, bufferSize);
+            await writable.write(remaining < chunk.length ? "X".repeat(remaining) : chunk);
+            written += Math.min(remaining, chunk.length);
           }
         } else {
-          await writable.write(content || "");
+          await writable.write(content);
         }
-
         await writable.close();
         return JSON.stringify({ result: `Success: Wrote to ${path}` });
       }
 
-      return JSON.stringify({ result: "Unknown action requested." });
+      return JSON.stringify({ result: "Action acknowledged." });
     } catch (e) {
-      return JSON.stringify({ result: "Critical Error: " + e.message });
+      return JSON.stringify({ result: "FS Error: " + e.message });
     }
   };
 </script>
