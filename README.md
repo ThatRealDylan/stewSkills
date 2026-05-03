@@ -4,6 +4,9 @@ Free useful skills to be used with Google Edge Gallery.
 Current Skills you can Use:
 
 #### (1.0v) stock-tracker - Track stocks
+#### (1.0v) weather-tracker - Track the weather in locations
+#### (1.0v) notes-system - Create, View, and manage notes stored on your device
+#### (1.0v) web-search - Search the web
 #### More coming soon!
 
 To import skills:

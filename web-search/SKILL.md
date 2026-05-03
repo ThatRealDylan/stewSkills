@@ -1,14 +1,17 @@
 ---
 name: web-search
-description: Searches the web for real-time information using DuckDuckGo.
+description: Professional web search using SearchApi (DuckDuckGo engine).
 author: ThatRealDylan
-version: "1.0.0"
+version: "2.0.0"
+metadata:
+  require-secret: true
+  require-secret-description: "Enter your SearchApi API Key or use this free one: 'n78NbFe4wQdMTgMYSpioY69w'."
 ---
 
-# Web Search
+# Web Search Pro
 
 ## Instructions
-Call the `run_js` tool with the following parameters:
-- script name: index.html. Not web-search, 'index.html' is correct. Find it in 'scripts/index.html'.
-- data: A JSON string with the following field:
-  - query: String. The search terms (e.g., 'latest spaceX launch', 'best pizza in Rome'). or stuff like 'search the web about...' or '..., search the web about it' in the prompt may also trigger this skill. stuff that you also dont really know about may also trigger this skill. For example, if you ask "What is the latest news on the stock market?" it may trigger this skill.
+Call the `run_js` tool to search the live internet:
+- script name: index.html
+- data: A JSON string with the field:
+  - query: String (The search terms).
