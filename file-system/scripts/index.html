@@ -4,20 +4,41 @@
 <script>
   window['ai_edge_gallery_get_result'] = async (data) => {
     try {
-      const { action, path, content, sizeMB } = JSON.parse(data);
+      const { action, path, content, sizeMB, quotaMB } = JSON.parse(data);
       const root = await navigator.storage.getDirectory();
+      const QUOTA_KEY = "stew_fs_quota_mb";
 
+      // --- CONFIG ACTION ---
+      if (action === "config") {
+        if (!quotaMB) return JSON.stringify({ result: "Error: Please provide quotaMB." });
+        localStorage.setItem(QUOTA_KEY, quotaMB);
+        return JSON.stringify({ result: `Virtual Drive successfully set to ${quotaMB}MB.` });
+      }
+
+      // --- STATUS/LIST ACTION ---
+      if (action === "status" || action === "list") {
+        const estimate = await navigator.storage.estimate();
+        const usageMB = (estimate.usage / (1024 * 1024)).toFixed(2);
+        const limit = localStorage.getItem(QUOTA_KEY) || "Unlimited";
+        
+        let files = [];
+        for await (const entry of root.values()) {
+          files.push(`${entry.kind === 'directory' ? '[DIR]' : '[FILE]'} ${entry.name}`);
+        }
+        
+        const report = `Storage: ${usageMB}MB / ${limit}MB used.\nItems:\n${files.join('\n') || "None"}`;
+        return JSON.stringify({ result: report });
+      }
+
+      // --- WRITE ACTION (Including Junk Gen) ---
       if (action === "write") {
         const fileHandle = await root.getFileHandle(path, { create: true });
         const writable = await fileHandle.createWritable();
         
-        let finalData = "";
         if (sizeMB) {
-          // Generates junk in chunks to avoid memory crashes
-          const bufferSize = 1024 * 1024; // 1MB chunk
+          const bufferSize = 1024 * 1024;
           const totalBytes = Math.floor(sizeMB * 1024 * 1024);
           const chunk = "X".repeat(Math.min(totalBytes, bufferSize));
-          
           let written = 0;
           while (written < totalBytes) {
             const remaining = totalBytes - written;
@@ -25,16 +46,14 @@
             written += Math.min(remaining, bufferSize);
           }
         } else {
-          finalData = content || "";
-          await writable.write(finalData);
+          await writable.write(content || "");
         }
 
         await writable.close();
-        return JSON.stringify({ result: `Success: Wrote ${sizeMB ? sizeMB + "MB" : "text"} to ${path}` });
+        return JSON.stringify({ result: `Success: Wrote to ${path}` });
       }
-      
-      // Fallback for status/list
-      return JSON.stringify({ result: "Action completed successfully." });
+
+      return JSON.stringify({ result: "Unknown action requested." });
     } catch (e) {
       return JSON.stringify({ result: "Critical Error: " + e.message });
     }
