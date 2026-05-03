@@ -4,38 +4,36 @@
 <script>
   window['ai_edge_gallery_get_result'] = async (data) => {
     try {
-      const query = JSON.parse(data).query;
+      const { query } = JSON.parse(data);
+      // Using DDG's official API for clean data
+      const ddgApi = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
       
-      // Using a CORS proxy to bypass blocks
-      const proxy = "https://api.allorigins.win/get?url=";
-      const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-      
-      const response = await fetch(proxy + encodeURIComponent(ddgUrl));
+      const response = await fetch(ddgApi);
       const json = await response.json();
-      const html = json.contents;
 
-      // Extract results using a simple regex (since we don't have a full DOM parser easily)
-      // We look for the result titles and snippets
-      const results = [];
-      const regex = /class="result__a" href="([^"]+)">([^<]+)<\/a>/g;
-      let match;
-      
-      while ((match = regex.exec(html)) !== null && results.length < 5) {
-        results.push({
-          title: match[2].trim(),
-          url: match[1]
+      let output = "";
+
+      // 1. Check for a direct answer
+      if (json.AbstractText) {
+        output += `Main Result: ${json.AbstractText}\nSource: ${json.AbstractURL}\n\n`;
+      }
+
+      // 2. Add related links (The actual "Web Search" part)
+      if (json.RelatedTopics && json.RelatedTopics.length > 0) {
+        output += "Related Search Results:\n";
+        json.RelatedTopics.slice(0, 5).forEach((topic, i) => {
+          if (topic.Text && topic.FirstURL) {
+            output += `${i+1}. ${topic.Text} - ${topic.FirstURL}\n`;
+          }
         });
       }
 
-      if (results.length === 0) {
-        return JSON.stringify({ result: "No results found. Try a different query." });
-      }
+      if (!output) output = "No direct results found. Try a broader search term.";
 
-      const formatted = results.map((r, i) => `${i+1}. ${r.title}\nURL: ${r.url}`).join('\n\n');
-      return JSON.stringify({ result: `Search results for "${query}":\n\n${formatted}` });
-
+      return JSON.stringify({ result: output });
     } catch (e) {
-      return JSON.stringify({ error: "Search failed: " + e.message });
+      // Returning the error as a result so Gemma can tell you what's up
+      return JSON.stringify({ result: "Web Search Error: " + e.message });
     }
   };
 </script>
