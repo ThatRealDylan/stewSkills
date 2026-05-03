@@ -4,39 +4,97 @@
 <script>
   window['ai_edge_gallery_get_result'] = async (data) => {
     try {
-      const { action, filename, content } = JSON.parse(data);
+      const { action, path, content, newPath, quotaMB } = JSON.parse(data);
       const root = await navigator.storage.getDirectory();
+      const QUOTA_KEY = "stew_fs_quota_mb";
 
-      if (action === "write") {
-        const fileHandle = await root.getFileHandle(filename, { create: true });
-        const writable = await fileHandle.createWritable();
+      // 1. Helper: Navigate to a nested path
+      const getHandle = async (filePath, create = false, type = 'file') => {
+        const parts = filePath.split('/').filter(p => p);
+        let current = root;
+        for (let i = 0; i < parts.length - 1; i++) {
+          current = await current.getDirectoryHandle(parts[i], { create });
+        }
+        const name = parts[parts.length - 1];
+        return type === 'dir' 
+          ? await current.getDirectoryHandle(name, { create })
+          : await current.getFileHandle(name, { create });
+      };
+
+      // 2. Action: Config (Set Virtual Drive Size)
+      if (action === "config") {
+        localStorage.setItem(QUOTA_KEY, quotaMB);
+        return JSON.stringify({ result: `Virtual Drive configured to ${quotaMB}MB.` });
+      }
+
+      // 3. Action: Status (Check Usage)
+      if (action === "status" || action === "list") {
+        const estimate = await navigator.storage.estimate();
+        const usageMB = (estimate.usage / (1024 * 1024)).toFixed(2);
+        const limit = localStorage.getItem(QUOTA_KEY) || "Unlimited";
+        
+        let fileList = [];
+        for await (const entry of root.values()) {
+          const type = entry.kind === 'directory' ? '[DIR]' : '[FILE]';
+          let sizeStr = "";
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            sizeStr = ` (${(file.size / 1024).toFixed(1)}KB)`;
+          }
+          fileList.push(`${type} ${entry.name}${sizeStr}`);
+        }
+
+        const status = `Drive Usage: ${usageMB}MB / ${limit === "Unlimited" ? limit : limit + "MB"}\n`;
+        return JSON.stringify({ result: status + (fileList.join("\n") || "No files.") });
+      }
+
+      // 4. Action: Write/Append with Quota Check
+      if (action === "write" || action === "append") {
+        const limitMB = parseFloat(localStorage.getItem(QUOTA_KEY));
+        if (limitMB) {
+          const estimate = await navigator.storage.estimate();
+          const currentUsageMB = estimate.usage / (1024 * 1024);
+          if (currentUsageMB >= limitMB) {
+            return JSON.stringify({ error: "Failed to write. Virtual Drive is full. Delete files or resize the drive." });
+          }
+        }
+
+        const fileHandle = await getHandle(path, true);
+        const writable = await fileHandle.createWritable({ keepExistingData: action === "append" });
+        if (action === "append") {
+          const file = await fileHandle.getFile();
+          await writable.seek(file.size);
+        }
         await writable.write(content);
         await writable.close();
-        return JSON.stringify({ result: `Successfully wrote to ${filename}.` });
+        return JSON.stringify({ result: `File ${path} updated.` });
       }
 
-      if (action === "read") {
-        const fileHandle = await root.getFileHandle(filename);
-        const file = await fileHandle.getFile();
-        const text = await file.text();
-        return JSON.stringify({ result: `Content of ${filename}:\n\n${text}` });
+      // 5. Action: Mkdir, Rename, Delete
+      if (action === "mkdir") {
+        await getHandle(path, true, 'dir');
+        return JSON.stringify({ result: `Directory ${path} created.` });
       }
 
-      if (action === "list") {
-        const files = [];
-        for await (const entry of root.values()) {
-          files.push(entry.name);
-        }
-        return JSON.stringify({ result: files.length ? `Files: ${files.join(", ")}` : "No files found." });
+      if (action === "rename") {
+        const fileHandle = await getHandle(path);
+        await fileHandle.move(newPath); // Note: move() works in modern OPFS
+        return JSON.stringify({ result: `Renamed ${path} to ${newPath}.` });
       }
 
       if (action === "delete") {
-        await root.removeEntry(filename);
-        return JSON.stringify({ result: `${filename} deleted.` });
+        await root.removeEntry(path, { recursive: true });
+        return JSON.stringify({ result: `${path} deleted.` });
+      }
+
+      if (action === "read") {
+        const fileHandle = await getHandle(path);
+        const file = await fileHandle.getFile();
+        return JSON.stringify({ result: await file.text() });
       }
 
     } catch (e) {
-      return JSON.stringify({ error: "File System Error: " + e.message });
+      return JSON.stringify({ error: "FS Error: " + e.message });
     }
   };
 </script>
