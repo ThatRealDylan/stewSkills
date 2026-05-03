@@ -4,75 +4,74 @@
 <script>
   window['ai_edge_gallery_get_result'] = async (data) => {
     try {
-      const args = JSON.parse(data);
-      const { action, path, content, sizeMB } = args;
+      const { action, path, content, sizeMB, quotaMB, newPath } = JSON.parse(data);
       const root = await navigator.storage.getDirectory();
+      const QUOTA_KEY = "stew_fs_quota_mb";
 
-      // NEW: Helper to generate large data locally in the webview
-      const generateJunk = (mb) => {
-        const bytes = mb * 1024 * 1024;
-        return 'x'.repeat(bytes); 
-      };
-
-      // Improved Path Helper
+      // Helper to navigate directories
       const getFileHandle = async (filePath, create = false) => {
         const parts = filePath.split('/').filter(p => p);
-        let currentDir = root;
+        let current = root;
         for (let i = 0; i < parts.length - 1; i++) {
-          currentDir = await currentDir.getDirectoryHandle(parts[i], { create });
+          current = await current.getDirectoryHandle(parts[i], { create });
         }
-        return await currentDir.getFileHandle(parts[parts.length - 1], { create });
+        return await current.getFileHandle(parts[parts.length - 1], { create });
       };
 
-      // 1. Config (The likely failure point)
-      const QUOTA_KEY = "fs_quota_limit";
+      // 1. Config & Status
       if (action === "config") {
-        if (typeof args.quotaMB !== 'number') throw new Error("quotaMB must be a number");
-        localStorage.setItem(QUOTA_KEY, args.quotaMB.toString());
-        return JSON.stringify({ result: `Success: Virtual Drive size set to ${args.quotaMB}MB.` });
+        localStorage.setItem(QUOTA_KEY, quotaMB);
+        return JSON.stringify({ result: `Quota set to ${quotaMB}MB.` });
       }
 
-      // 2. Drive Status & Listing
       if (action === "status" || action === "list") {
-        const estimate = await navigator.storage.estimate();
-        const usageMB = (estimate.usage / (1024 * 1024)).toFixed(2);
+        const est = await navigator.storage.estimate();
         const limit = localStorage.getItem(QUOTA_KEY) || "Unlimited";
-        
-        let entries = [];
+        const files = [];
         for await (const entry of root.values()) {
-          let extra = entry.kind === 'directory' ? '[DIR]' : '[FILE]';
-          entries.push(`${extra} ${entry.name}`);
+          files.push(`${entry.kind === 'directory' ? '[DIR]' : '[FILE]'} ${entry.name}`);
         }
-        
-        const info = `Drive: ${usageMB}MB / ${limit}MB used.\n\nItems:\n${entries.join("\n") || "Empty"}`;
-        return JSON.stringify({ result: info });
+        return JSON.stringify({ 
+          result: `Usage: ${(est.usage / 1024 / 1024).toFixed(2)}MB / ${limit}MB\n\n${files.join("\n")}` 
+        });
       }
 
-      // 3. Robust Write/Append
+      // 2. Optimized Write (Handles large junk files)
       if (action === "write" || action === "append") {
-        const limit = parseFloat(localStorage.getItem(QUOTA_KEY));
-        if (limit) {
-          const est = await navigator.storage.estimate();
-          if ((est.usage / (1024 * 1024)) >= limit) {
-            return JSON.stringify({ result: "FAILED: Drive is full." });
-          }
-        }
         const handle = await getFileHandle(path, true);
         const writable = await handle.createWritable({ keepExistingData: (action === "append") });
+        
         if (action === "append") {
           const file = await handle.getFile();
           await writable.seek(file.size);
         }
-        const finalContent = sizeMB ? generateJunk(sizeMB) : (content || "");
-        await writable.write(finalContent);
+
+        if (sizeMB) {
+          // Write in 512KB chunks to prevent memory crashes
+          const chunkSize = 512 * 1024;
+          const totalBytes = sizeMB * 1024 * 1024;
+          const dummyData = new Uint8Array(chunkSize).fill(120); // 'x'
+          
+          for (let i = 0; i < totalBytes; i += chunkSize) {
+            await writable.write(dummyData);
+          }
+        } else {
+          await writable.write(content || "");
+        }
+
         await writable.close();
-        return JSON.stringify({ result: `File '${path}' updated.` });
+        return JSON.stringify({ result: `Successfully wrote to ${path}` });
       }
 
-      // 4. Directory Creation
+      // 3. Simple Actions
       if (action === "mkdir") {
         await root.getDirectoryHandle(path, { create: true });
-        return JSON.stringify({ result: `Directory '${path}' created.` });
+        return JSON.stringify({ result: `Dir ${path} created.` });
+      }
+
+      if (action === "delete") {
+        await root.removeEntry(path, { recursive: true });
+        return JSON.stringify({ result: `${path} deleted.` });
       }
 
       return JSON.stringify({ error: "Unknown action" });
